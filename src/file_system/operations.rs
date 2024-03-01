@@ -76,7 +76,7 @@ impl FileGateway {
         debug!("Got read lock for file {}", key);
 
         //Uncomment this delay to simulate a very very very large file read delay
-        std::thread::sleep(std::time::Duration::from_secs(7));
+        //std::thread::sleep(std::time::Duration::from_secs(7));
 
         let path = format!("{}/{}", self.store_location, key);
         if !std::path::Path::new(&path).exists() {
@@ -142,7 +142,7 @@ impl FileGateway {
 
     pub fn read_lock_key(
         &self,
-        key: &String,
+        key: &str,
     ) -> Result<RwLockReadGuard<'_, i32>, PoisonError<RwLockReadGuard<'_, i32>>> {
         // Locks are in a bucket and each key locks a RwLock from that bucket.
         // For simplicity the lock bucket is based on the length of the key
@@ -153,7 +153,7 @@ impl FileGateway {
 
     pub fn write_lock_key(
         &self,
-        key: &String,
+        key: &str,
     ) -> Result<RwLockWriteGuard<'_, i32>, PoisonError<RwLockWriteGuard<'_, i32>>> {
         // Locks are in a bucket and each key locks a RwLock from that bucket.
         // For simplicity the lock bucket is based on the length of the key

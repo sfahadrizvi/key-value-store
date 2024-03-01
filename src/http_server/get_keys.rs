@@ -8,7 +8,7 @@ struct KeyPrefix {
     prefix: String,
 }
 
-////Request to get key matching a prefix
+///Request to get key matching a prefix
 pub(crate) async fn get_keys(
     State(state): State<Arc<ServerState>>,
     body: String,
@@ -22,13 +22,9 @@ pub(crate) async fn get_keys(
         })
         .await;
 
-        if let Ok(keys_found_res) = task_result {
-            if let Ok(keys_found) = keys_found_res {
-                let response_string = serde_json::to_string::<Vec<Key>>(&keys_found).unwrap();
-                Ok(response_string)
-            } else {
-                Err(StatusCode::NOT_FOUND)
-            }
+        if let Ok(Ok(keys_found)) = task_result {
+            let response_string = serde_json::to_string::<Vec<Key>>(&keys_found).unwrap();
+            Ok(format!("[{}]", response_string))
         } else {
             Err(StatusCode::NOT_FOUND)
         }

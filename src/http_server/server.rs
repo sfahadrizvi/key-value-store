@@ -21,7 +21,7 @@ pub(crate) struct ServerState {
     pub file_gateway: FileGateway,
 }
 
-pub(crate) fn check_for_repeated_key(kv_vec: &Vec<KeyValue>) -> bool {
+pub(crate) fn check_for_repeated_key(kv_vec: &[KeyValue]) -> bool {
     let keys = kv_vec
         .iter()
         .map(|key| key.key.clone())

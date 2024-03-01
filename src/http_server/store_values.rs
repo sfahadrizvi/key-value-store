@@ -4,7 +4,7 @@ use futures::future;
 use serde_json::Value;
 use std::sync::Arc;
 
-////Request to create a key. It will fail if the key already exists
+///Request to create a key. It will fail if the key already exists
 pub(crate) async fn create_key(
     State(state): State<Arc<ServerState>>,
     body: String,
@@ -13,7 +13,7 @@ pub(crate) async fn create_key(
     create_or_update_keys(State(state), body, true).await
 }
 
-////Request to update or create a key. It will create a key if it does not exist
+///Request to update or create a key. It will create a key if it does not exist
 pub(crate) async fn update_key(
     State(state): State<Arc<ServerState>>,
     body: String,
@@ -22,7 +22,7 @@ pub(crate) async fn update_key(
     create_or_update_keys(State(state), body, false).await
 }
 
-////This funtion creates checks if the request body if json or json array and creates/updates each key
+///This funtion creates checks if the request body if json or json array and creates/updates each key
 async fn create_or_update_keys(
     State(state): State<Arc<ServerState>>,
     body: String,
@@ -86,11 +86,7 @@ async fn create_or_update_keys(
 
 fn extract_failure_success(val: Result<Result<String, String>, tokio::task::JoinError>) -> bool {
     if let Ok(key_value) = val {
-        if let Ok(_) = key_value {
-            true
-        } else {
-            false
-        }
+        key_value.is_ok()
     } else {
         false
     }
@@ -108,7 +104,7 @@ async fn create_or_update_key(
         kv.value
     );
 
-    if kv.key.len() == 0 || kv.value.len() == 0 || kv.key.contains("/") {
+    if kv.key.is_empty() || kv.value.is_empty() || kv.key.contains('/') {
         warn!("Bad request, invalid key {} or value {}", kv.key, kv.value);
         return Err(format!(
             "Bad request, invalid key {} or value {}",
@@ -146,5 +142,6 @@ fn create_json_response(modified: Vec<String>, failed: Vec<String>) -> String {
             .collect::<Vec<_>>(),
     );
 
-    response.join(",")
+    format!("[{}]", response.join(","))
+    
 }

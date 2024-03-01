@@ -4,7 +4,7 @@ use futures::future;
 use serde_json::Value;
 use std::sync::Arc;
 
-////Request to delete keys. It will still suceed if the key does not exist
+///Request to delete keys. It will still suceed if the key does not exist
 pub(crate) async fn delete_keys(
     State(state): State<Arc<ServerState>>,
     body: String,
@@ -23,12 +23,8 @@ pub(crate) async fn delete_keys(
         let task_results: Vec<Result<Result<String, StatusCode>, tokio::task::JoinError>> =
             future::join_all(create_tasks).await;
         for (index, val) in task_results.into_iter().enumerate() {
-            if let Ok(key_value_res) = val {
-                if let Ok(key_value) = key_value_res {
-                    keys_deleted.push(key_value);
-                } else {
-                    failed_deletion.push(json_keys[index].key.to_owned());
-                }
+            if let Ok(Ok(key_value)) = val {
+                keys_deleted.push(key_value);
             } else {
                 failed_deletion.push(json_keys[index].key.to_owned());
             }
@@ -41,12 +37,8 @@ pub(crate) async fn delete_keys(
                 delete_key(clone_key.key.clone(), State(state.clone())).await
             })
             .await;
-            if let Ok(key_value_res) = task_result {
-                if let Ok(key_value) = key_value_res {
-                    keys_deleted.push(key_value);
-                } else {
-                    failed_deletion.push(key_value.key);
-                }
+            if let Ok(Ok(key_value)) = task_result {
+                keys_deleted.push(key_value);
             } else {
                 failed_deletion.push(key_value.key);
             }
@@ -64,8 +56,7 @@ pub(crate) async fn delete_keys(
             .collect::<Vec<_>>(),
     );
 
-    let response_string = deletions.join(",");
-    Ok(response_string)
+    Ok(format!("[{}]", deletions.join(",")))
 }
 
 async fn delete_key(

@@ -4,7 +4,7 @@ use futures::future;
 use serde_json::Value;
 use std::sync::Arc;
 
-////Request to get key value.
+///Request to get key value.
 pub(crate) async fn get_values(
     State(state): State<Arc<ServerState>>,
     body: String,
@@ -28,15 +28,8 @@ pub(crate) async fn get_values(
         let task_results: Vec<Result<Result<KeyValue, StatusCode>, tokio::task::JoinError>> =
             future::join_all(create_tasks).await;
         for (index, val) in task_results.into_iter().enumerate() {
-            if let Ok(key_value_res) = val {
-                if let Ok(key_value) = key_value_res {
-                    keys_found.push(key_value);
-                } else {
-                    keys_not_found.push(KeyValue {
-                        key: json_keys[index].key.to_owned(),
-                        value: "".to_string(),
-                    });
-                }
+            if let Ok(Ok(key_value)) = val {
+                keys_found.push(key_value);
             } else {
                 keys_not_found.push(KeyValue {
                     key: json_keys[index].key.to_owned(),
@@ -52,15 +45,8 @@ pub(crate) async fn get_values(
             let task_result =
                 tokio::spawn(async move { get_key(clone_key.key, State(state.clone())).await })
                     .await;
-            if let Ok(key_value_res) = task_result {
-                if let Ok(key_value) = key_value_res {
-                    keys_found.push(key_value);
-                } else {
-                    keys_not_found.push(KeyValue {
-                        key: key_value.key,
-                        value: "".to_string(),
-                    });
-                }
+            if let Ok(Ok(key_value)) = task_result {
+                keys_found.push(key_value);
             } else {
                 keys_not_found.push(KeyValue {
                     key: key_value.key,
@@ -86,8 +72,7 @@ pub(crate) async fn get_values(
             .collect::<Vec<_>>(),
     );
 
-    let response_string = key_values.join(",");
-    Ok(response_string)
+    Ok(format!("[{}]", key_values.join(",")))
 }
 
 async fn get_key(
@@ -96,10 +81,10 @@ async fn get_key(
 ) -> Result<KeyValue, StatusCode> {
     if let Some(cache_value) = state.cache.get(&key).await {
         info!("Getting {} from cache", key);
-        return Ok(KeyValue {
+        Ok(KeyValue {
             key,
             value: cache_value,
-        });
+        })
     } else {
         warn!("Getting {} from disk", key);
         let kv_ret = state.file_gateway.read_file(key).await;
