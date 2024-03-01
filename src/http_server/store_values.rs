@@ -31,54 +31,49 @@ async fn create_or_update_keys(
     debug!("create_or_update_key called");
     let mut keys_modified: Vec<String> = Vec::new();
     let mut failed_modification: Vec<String> = vec![];
-    let json_body: Value = serde_json::from_str(&body).unwrap();
+    let json_body_res: Result<Value, _> = serde_json::from_str(&body);
+    if json_body_res.is_err() {
+        return Err(StatusCode::BAD_REQUEST);
+    } 
+    let json_body = json_body_res.unwrap();
+    
+    // Parse the body to create an array of keys to update/create
+    let json_key_values_res: Result<Vec<KeyValue>, _> = if json_body.is_array() {    
+        serde_json::from_value(json_body)
+    } else {            
+        serde_json::from_value(json_body).map_or_else(|e| Err(e),|val| Ok(vec![val]))
+    };
+    if json_key_values_res.is_err() {
+        return Err(StatusCode::BAD_REQUEST);
+    } 
+    let json_key_values = json_key_values_res.unwrap();
 
-    if json_body.is_array() {
-        // Loop through the body and create an array of keys to update/create
-        let json_key_values: Vec<KeyValue> = serde_json::from_value(json_body).unwrap();
-        if check_for_repeated_key(&json_key_values) {
-            // If there are no repreated keys then create a async task for each key
-            let create_tasks: Vec<_> = json_key_values
-                .iter()
-                .map(|val| {
-                    tokio::spawn(create_or_update_key(
-                        State(state.clone()),
-                        val.clone(),
-                        create_new,
-                    ))
-                })
-                .collect();
+    if check_for_repeated_key(&json_key_values) {
+        // If there are no repreated keys then create a async task for each key
+        let create_tasks: Vec<_> = json_key_values
+            .iter()
+            .map(|val| {
+                tokio::spawn(create_or_update_key(
+                    State(state.clone()),
+                    val.clone(),
+                    create_new,
+                ))
+            })
+            .collect();
 
-            // Execute tasks async and loop through the results to create the final resultant array
-            let task_results: Vec<Result<Result<String, String>, tokio::task::JoinError>> =
-                future::join_all(create_tasks).await;
-            for (index, val) in task_results.into_iter().enumerate() {
-                if extract_failure_success(val) {
-                    keys_modified.push(json_key_values[index].key.clone());
-                } else {
-                    failed_modification.push(json_key_values[index].key.clone());
-                }
+        // Execute tasks async and loop through the results to create the final resultant array
+        let task_results: Vec<Result<Result<String, String>, tokio::task::JoinError>> =
+            future::join_all(create_tasks).await;
+        for (index, val) in task_results.into_iter().enumerate() {
+            if extract_failure_success(val) {
+                keys_modified.push(json_key_values[index].key.clone());
+            } else {
+                failed_modification.push(json_key_values[index].key.clone());
             }
-        } else {
-            warn!("create_or_update_key called with bad request, duplicate keuys");
-            return Err(StatusCode::BAD_REQUEST);
         }
     } else {
-        // The body is a single element but exectute that in a task to catch any exceptions/panics
-        let json_key_value: Result<KeyValue, serde_json::Error> = serde_json::from_value(json_body);
-        if let Ok(key_value) = json_key_value {
-            let clone_key_value = key_value.clone();
-            let clone_state = state.clone();
-            let task_result = tokio::spawn(async move {
-                create_or_update_key(State(clone_state), clone_key_value, create_new).await
-            })
-            .await;
-            if extract_failure_success(task_result) {
-                keys_modified.push(key_value.key.clone());
-            } else {
-                failed_modification.push(key_value.key);
-            }
-        }
+        warn!("create_or_update_key called with bad request, duplicate keuys");
+        return Err(StatusCode::BAD_REQUEST);
     }
 
     Ok(create_json_response(keys_modified, failed_modification))

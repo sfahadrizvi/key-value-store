@@ -12,47 +12,40 @@ pub(crate) async fn get_values(
     debug!("get_value called");
     let mut keys_found = Vec::new();
     let mut keys_not_found = Vec::new();
-    let json_body: Value = serde_json::from_str(&body).unwrap();
+    let json_body_res: Result<Value, _> = serde_json::from_str(&body);
+    if json_body_res.is_err() {
+        return Err(StatusCode::BAD_REQUEST);
+    } 
+    let json_body = json_body_res.unwrap();
+    
+    // Parse the body to create an array of keys to update/create
+    let json_keys_res: Result<Vec<Key>, _> = if json_body.is_array() {    
+        serde_json::from_value(json_body)
+    } else {            
+        serde_json::from_value(json_body).map_or_else(|e| Err(e),|val| Ok(vec![val]))
+    };
+    if json_keys_res.is_err() {
+        return Err(StatusCode::BAD_REQUEST);
+    } 
+    let json_keys = json_keys_res.unwrap();
 
-    if json_body.is_array() {
-        // Loop through the body and create an array of keys to update/create
-        let json_keys: Vec<Key> = serde_json::from_value(json_body).unwrap();
+    // If there are no repreated keys then create a async task for each key
+    let create_tasks: Vec<_> = json_keys
+        .iter()
+        .map(|key| tokio::spawn(get_key(key.key.clone(), State(state.clone()))))
+        .collect();
 
-        // If there are no repreated keys then create a async task for each key
-        let create_tasks: Vec<_> = json_keys
-            .iter()
-            .map(|key| tokio::spawn(get_key(key.key.clone(), State(state.clone()))))
-            .collect();
-
-        // Execute tasks async and loop through the results to create the final resultant array
-        let task_results: Vec<Result<Result<KeyValue, StatusCode>, tokio::task::JoinError>> =
-            future::join_all(create_tasks).await;
-        for (index, val) in task_results.into_iter().enumerate() {
-            if let Ok(Ok(key_value)) = val {
-                keys_found.push(key_value);
-            } else {
-                keys_not_found.push(KeyValue {
-                    key: json_keys[index].key.to_owned(),
-                    value: "".to_string(),
-                });
-            }
-        }
-    } else {
-        // The body is a single element but exectute that in a task to catch any exceptions/panics
-        let json_key: Result<Key, serde_json::Error> = serde_json::from_value(json_body);
-        if let Ok(key_value) = json_key {
-            let clone_key = key_value.clone();
-            let task_result =
-                tokio::spawn(async move { get_key(clone_key.key, State(state.clone())).await })
-                    .await;
-            if let Ok(Ok(key_value)) = task_result {
-                keys_found.push(key_value);
-            } else {
-                keys_not_found.push(KeyValue {
-                    key: key_value.key,
-                    value: "".to_string(),
-                });
-            }
+    // Execute tasks async and loop through the results to create the final resultant array
+    let task_results: Vec<Result<Result<KeyValue, StatusCode>, tokio::task::JoinError>> =
+        future::join_all(create_tasks).await;
+    for (index, val) in task_results.into_iter().enumerate() {
+        if let Ok(Ok(key_value)) = val {
+            keys_found.push(key_value);
+        } else {
+            keys_not_found.push(KeyValue {
+                key: json_keys[index].key.to_owned(),
+                value: "".to_string(),
+            });
         }
     }
 

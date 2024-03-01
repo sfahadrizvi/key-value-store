@@ -184,15 +184,15 @@ curl --location 'http://localhost:8080/insert' \
     },
     {
     "key":"key_3_name",
-    "value":"key_1_value"
+    "value":"key_3_value"
     }
 ]'
 ```
 On success this will resturn 
 ```
 [
-    {"key":"key_name", "modified": "true"},
     {"key":"key_1_name", "modified": "true"},
+    {"key":"key_2_name", "modified": "true"},
     {"key":"key_3_name", "modified": "true"}
 ]
 ```
