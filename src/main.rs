@@ -1,16 +1,22 @@
-pub mod http_server;
 pub mod file_system;
+pub mod http_server;
 extern crate pretty_env_logger;
-#[macro_use] extern crate log;
+#[macro_use]
+extern crate log;
 
-use axum::{
-    routing::post, Router
+use crate::{
+    file_system::operations::FileGateway,
+    http_server::{
+        delete_keys::delete_keys,
+        get_keys::get_keys,
+        get_values::get_values,
+        server::ServerState,
+        store_values::{create_key, update_key},
+    },
 };
+use axum::{routing::post, Router};
 use clap::Parser;
 use moka::future::Cache;
-use crate::{file_system::operations::FileGateway, http_server::{
-    delete_keys::delete_keys, get_keys::get_keys, get_values::get_values, server::ServerState, store_values::{create_key, update_key}
-}};
 use std::{path::Path, sync::Arc};
 
 #[derive(Parser, Debug)]
@@ -26,17 +32,17 @@ struct Args {
 }
 
 #[tokio::main()]
-async fn main() -> Result<(), String> { 
+async fn main() -> Result<(), String> {
     pretty_env_logger::init();
     let args = Args::parse();
 
     if !Path::new(&args.path).exists() {
         error!("The path to key value store does not exist");
-        return Err("The path to key value store does not exist".to_string())
+        return Err("The path to key value store does not exist".to_string());
     }
     let state = Arc::new(ServerState {
         cache: Cache::new(1000),
-        file_gateway: FileGateway::new(args.path)
+        file_gateway: FileGateway::new(args.path),
     });
 
     // build our application with a route
@@ -61,5 +67,3 @@ static KEYS_END_POINT: &str = "/keys";
 static INSERT_END_POINT: &str = "/insert";
 static INSERT_UPDATE_END_POINT: &str = "/update";
 static DELETE_END_POINT: &str = "/delete";
-
-

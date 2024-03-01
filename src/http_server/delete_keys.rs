@@ -5,7 +5,10 @@ use serde_json::Value;
 use std::sync::Arc;
 
 ////Request to delete keys. It will still suceed if the key does not exist
-pub(crate) async fn delete_keys(State(state): State<Arc<ServerState>>, body:String) -> Result<String, StatusCode> {
+pub(crate) async fn delete_keys(
+    State(state): State<Arc<ServerState>>,
+    body: String,
+) -> Result<String, StatusCode> {
     info!("delete_key called with keys {}", body);
     let mut keys_deleted = Vec::new();
     let mut failed_deletion = Vec::new();
@@ -13,14 +16,12 @@ pub(crate) async fn delete_keys(State(state): State<Arc<ServerState>>, body:Stri
 
     if json_body.is_array() {
         let json_keys: Vec<Key> = serde_json::from_value(json_body).unwrap();
-        let create_tasks: Vec<_>  = json_keys
-                                        .iter()
-                                        .map(|key| tokio::spawn(
-                                        delete_key(key.key.clone(), State(state.clone()))
-                                        )
-                                    )
-                                    .collect();
-        let task_results: Vec<Result<Result<String, StatusCode>, tokio::task::JoinError>> =  future::join_all(create_tasks).await;
+        let create_tasks: Vec<_> = json_keys
+            .iter()
+            .map(|key| tokio::spawn(delete_key(key.key.clone(), State(state.clone()))))
+            .collect();
+        let task_results: Vec<Result<Result<String, StatusCode>, tokio::task::JoinError>> =
+            future::join_all(create_tasks).await;
         for (index, val) in task_results.into_iter().enumerate() {
             if let Ok(key_value_res) = val {
                 if let Ok(key_value) = key_value_res {
@@ -34,11 +35,12 @@ pub(crate) async fn delete_keys(State(state): State<Arc<ServerState>>, body:Stri
         }
     } else {
         let json_key: Result<Key, serde_json::Error> = serde_json::from_value(json_body);
-        if let Ok(key_value) = json_key  {
+        if let Ok(key_value) = json_key {
             let clone_key = key_value.clone();
-            let task_result = tokio::spawn(async move {    
+            let task_result = tokio::spawn(async move {
                 delete_key(clone_key.key.clone(), State(state.clone())).await
-            }).await;
+            })
+            .await;
             if let Ok(key_value_res) = task_result {
                 if let Ok(key_value) = key_value_res {
                     keys_deleted.push(key_value);
@@ -50,23 +52,26 @@ pub(crate) async fn delete_keys(State(state): State<Arc<ServerState>>, body:Stri
             }
         }
     }
-    
+
     let mut deletions = keys_deleted
-    .iter()
-    .map(|val| format!(r#"{{"key":{}, "deleted": "true"}}"#, val)).collect::<Vec<_>>();
+        .iter()
+        .map(|val| format!(r#"{{"key":{}, "deleted": "true"}}"#, val))
+        .collect::<Vec<_>>();
     deletions.append(
         &mut failed_deletion
             .iter()
-            .map(|val| format!(r#"{{"key":{}, "deleted": "false"}}"#, val)).collect::<Vec<_>>()
-        );
+            .map(|val| format!(r#"{{"key":{}, "deleted": "false"}}"#, val))
+            .collect::<Vec<_>>(),
+    );
 
     let response_string = deletions.join(",");
     Ok(response_string)
-    
 }
 
-async fn delete_key(key: String, State(state): State<Arc<ServerState>>) -> Result<String, StatusCode> {
+async fn delete_key(
+    key: String,
+    State(state): State<Arc<ServerState>>,
+) -> Result<String, StatusCode> {
     state.cache.invalidate(&key).await;
     state.file_gateway.delete_file(key).await
-    
 }
