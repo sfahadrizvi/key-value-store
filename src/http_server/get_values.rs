@@ -1,32 +1,55 @@
-use super::server::{KeyValue, Key};
+use super::server::{Key, KeyValue, ServerState};
+use crate::file_system::operations::read_file;
 use axum::{extract::State, http::StatusCode};
 use serde_json::Value;
-use std::fs;
+use std::sync::Arc;
+use futures::future;
 
 ////Request to get key value.
-pub(crate) async fn get_value(State(state): State<String>, body:String) -> Result<String, StatusCode> {
-    info!("get_value api called with keys {}", body);
+pub(crate) async fn get_values(State(state): State<Arc<ServerState>>, body:String) -> Result<String, StatusCode> {
+    debug!("get_value called");
     let mut keys_found = Vec::new();
     let mut keys_not_found = Vec::new();
-    let r: Value = serde_json::from_str(&body).unwrap();
+    let json_body: Value = serde_json::from_str(&body).unwrap();
 
-    if r.is_array() {
-        let arr: Vec<Key> = serde_json::from_value(r).unwrap();
-        for key in arr {
-            let keyvalue = get_key(State(state.clone()), key.key.to_owned()).await;
-            if keyvalue.is_ok() {
-                keys_found.push(keyvalue.unwrap());
+    if json_body.is_array() {
+        let json_keys: Vec<Key> = serde_json::from_value(json_body).unwrap();
+        let create_tasks: Vec<_>  = json_keys
+                                        .iter()
+                                        .map(|key| tokio::spawn(
+                                        get_key(key.key.clone(), State(state.clone()))
+                                        )
+                                    )
+                                    .collect();
+        let task_results: Vec<Result<Result<KeyValue, StatusCode>, tokio::task::JoinError>> =  future::join_all(create_tasks).await;
+        for (index, val) in task_results.into_iter().enumerate() {
+            if let Ok(key_value_res) = val {
+                if let Ok(key_value) = key_value_res {
+                    keys_found.push(key_value);
+                } else {
+                    keys_not_found.push(KeyValue{key: json_keys[index].key.to_owned(), value: "".to_string()});
+                }
             } else {
-                keys_not_found.push(KeyValue{key: key.key, value: "".to_string()});
+                keys_not_found.push(KeyValue{key: json_keys[index].key.to_owned(), value: "".to_string()});
             }
         }
+
     } else {
-        let key: Key = serde_json::from_value(r).unwrap();
-        let res = get_key(State(state.clone()), key.key.to_owned()).await;
-        if res.is_ok() {
-            keys_found.push(res.unwrap());
-        } else {
-            keys_not_found.push(KeyValue{key: key.key, value: "".to_string()});
+        let json_key: Result<Key, serde_json::Error> = serde_json::from_value(json_body);
+        if let Ok(key_value) = json_key  {
+            let clone_key = key_value.clone();
+            let task_result = tokio::spawn(async move {    
+                get_key(clone_key.key, State(state.clone())).await
+            }).await;
+            if let Ok(key_value_res) = task_result {
+                if let Ok(key_value) = key_value_res {
+                    keys_found.push(key_value);
+                } else {
+                    keys_not_found.push(KeyValue{key: key_value.key, value: "".to_string()});
+                }
+            } else {
+                keys_not_found.push(KeyValue{key: key_value.key, value: "".to_string()});
+            }
         }
     }
     
@@ -43,19 +66,12 @@ pub(crate) async fn get_value(State(state): State<String>, body:String) -> Resul
     Ok(response_string)
 }
 
-async fn get_key(State(state): State<String>, key:String) -> Result<KeyValue, StatusCode> {
-    let path = format!("{}/{}", state, key);
-    if !std::path::Path::new(&path).exists() {
-        info!("Finding nonexisting key {}", key);
-        Err(StatusCode::NOT_FOUND)
+async fn get_key(key: String, State(state):State<Arc<ServerState>>) -> Result<KeyValue, StatusCode> {
+    if let Some(cache_value) = state.cache.get(&key).await {
+        info!("Getting {} from cache", key);
+        return Ok(KeyValue{key, value: cache_value});
     } else {
-        match fs::read_to_string(path) {
-            Ok(value) => Ok(
-                KeyValue {key, value }),
-            Err(err) => { 
-                warn!("Key could not be read: {}", err);
-                Err(StatusCode::NOT_FOUND)
-            }
-        }
+        warn!("Getting {} from disk", key);
+        read_file(state.path.clone(), key).await
     }
 }
