@@ -1,12 +1,10 @@
-use crate::file_system::operations::delete_file;
-
 use super::server::{Key, ServerState};
 use axum::{extract::State, http::StatusCode};
 use futures::future;
 use serde_json::Value;
 use std::sync::Arc;
 
-////Request to delete a key. It will still suceed if the key does not exist
+////Request to delete keys. It will still suceed if the key does not exist
 pub(crate) async fn delete_keys(State(state): State<Arc<ServerState>>, body:String) -> Result<String, StatusCode> {
     info!("delete_key called with keys {}", body);
     let mut keys_deleted = Vec::new();
@@ -69,5 +67,6 @@ pub(crate) async fn delete_keys(State(state): State<Arc<ServerState>>, body:Stri
 
 async fn delete_key(key: String, State(state): State<Arc<ServerState>>) -> Result<String, StatusCode> {
     state.cache.invalidate(&key).await;
-    delete_file(state.path.clone(), key).await
+    state.file_gateway.delete_file(key).await
+    
 }

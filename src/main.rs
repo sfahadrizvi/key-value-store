@@ -8,9 +8,9 @@ use axum::{
 };
 use clap::Parser;
 use moka::future::Cache;
-use crate::http_server::{
+use crate::{file_system::operations::FileGateway, http_server::{
     delete_keys::delete_keys, get_keys::get_keys, get_values::get_values, server::ServerState, store_values::{create_key, update_key}
-};
+}};
 use std::{path::Path, sync::Arc};
 
 #[derive(Parser, Debug)]
@@ -35,8 +35,8 @@ async fn main() -> Result<(), String> {
         return Err("The path to key value store does not exist".to_string())
     }
     let state = Arc::new(ServerState {
-        path: args.path.clone(),
-        cache: Cache::new(1000)
+        cache: Cache::new(1000),
+        file_gateway: FileGateway::new(args.path)
     });
 
     // build our application with a route

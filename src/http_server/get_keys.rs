@@ -1,4 +1,3 @@
-use crate::file_system::operations::get_files_with_prefix;
 use super::server::{Key, ServerState};
 use axum::{extract::State, http::StatusCode};
 use serde::Deserialize;
@@ -9,7 +8,7 @@ struct KeyPrefix {
     prefix: String
 }
 
-////Request to get key value.
+////Request to get key matching a prefix
 pub(crate) async fn get_keys(State(state): State<Arc<ServerState>>, body: String) -> Result<String, StatusCode> {
     info!("get_keys api called with keys {}", body);
     let json_key: Result<KeyPrefix, _> = serde_json::from_str(&body);
@@ -35,5 +34,5 @@ pub(crate) async fn get_keys(State(state): State<Arc<ServerState>>, body: String
 }
 
 async fn get_keys_with_prefix(key: String, State(state): State<Arc<ServerState>>) -> Result<Vec<Key>, StatusCode> {
-    get_files_with_prefix(state.path.clone(), key).await
+    state.file_gateway.get_files_with_prefix(key).await
 }

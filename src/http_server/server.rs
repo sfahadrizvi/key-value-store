@@ -3,6 +3,8 @@ use std::collections::HashSet;
 use serde::{Deserialize, Serialize};
 use moka::future::Cache;
 
+use crate::file_system::operations::FileGateway;
+
 #[derive(Deserialize, Debug, Clone)]
 pub(crate) struct KeyValue {
     pub key: String,
@@ -15,8 +17,8 @@ pub(crate) struct Key {
 }
 
 pub(crate) struct ServerState {
-    pub path: String,
-    pub cache: Cache<String, String>
+    pub cache: Cache<String, String>,
+    pub file_gateway: FileGateway
 }
 
 pub(crate) fn check_for_repeated_key(kv_vec :&Vec<KeyValue>) -> bool {
