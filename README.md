@@ -169,7 +169,7 @@ Unlike the other endpoind this does not take an array but returns an array. The 
 It will return an empty array is nothing is found
 
 ## Sample Test Calls
-#insert
+# insert
 ```
 curl --location 'http://localhost:8080/insert' \
 --header 'Content-Type: application/json' \
@@ -196,7 +196,7 @@ On success this will resturn
     {"key":"key_3_name", "modified": "true"}
 ]
 ```
-#get
+# get
 ```
 curl --location 'http://localhost:8080/get' \
 --header 'Content-Type: application/json' \
@@ -233,6 +233,23 @@ The above example will return keys mathing `key*`
     {"key":"key_name"}
 ]
 ```
+
+# delete
+```
+curl --location 'http://localhost:8080/delete' \
+--header 'Content-Type: application/json' \
+--data '
+    [
+        {"key":"key_1_name"},
+        {"key":"key_2_name"},
+        {"key":"key_nonexisting"}
+    ]
+```
+It will delete the 3 files and result something like 
+```
+    {"key":key_1_name, "deleted": "true"},{"key":key_2_name, "deleted": "true"},{"key":key_nonexisting, "deleted": "true"}
+```
+
 ## Excluded Tests
 The tests are not included because this is writing to files and it can quickly destroy regular ssd. 
 

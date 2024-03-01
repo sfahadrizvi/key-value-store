@@ -143,5 +143,4 @@ fn create_json_response(modified: Vec<String>, failed: Vec<String>) -> String {
     );
 
     format!("[{}]", response.join(","))
-    
 }
