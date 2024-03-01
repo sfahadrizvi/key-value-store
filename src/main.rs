@@ -4,12 +4,12 @@ extern crate pretty_env_logger;
 #[macro_use] extern crate log;
 
 use axum::{
-    routing::{get, post}, Router
+    routing::post, Router
 };
 use clap::Parser;
 use moka::future::Cache;
 use crate::http_server::{
-    delete_keys::delete_key, get_keys::get_keys, get_values::get_values, server::ServerState, store_values::{create_key, update_key}
+    delete_keys::delete_keys, get_keys::get_keys, get_values::get_values, server::ServerState, store_values::{create_key, update_key}
 };
 use std::{path::Path, sync::Arc};
 
@@ -43,8 +43,8 @@ async fn main() -> Result<(), String> {
     let app = Router::new()
         .route(INSERT_END_POINT, post(create_key))
         .route(INSERT_UPDATE_END_POINT, post(update_key))
-        //.route(DELETE_END_POINT, post(delete_key))
-        //.route(KEYS_END_POINT, post(get_keys))
+        .route(DELETE_END_POINT, post(delete_keys))
+        .route(KEYS_END_POINT, post(get_keys))
         .route(GET_END_POINT, post(get_values))
         .with_state(state);
 

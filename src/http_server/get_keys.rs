@@ -1,54 +1,39 @@
-use super::server::Key as MatchedKeys;
+use crate::file_system::operations::get_files_with_prefix;
+use super::server::{Key, ServerState};
 use axum::{extract::State, http::StatusCode};
-use serde_json::Value;
-
-use glob::glob;
 use serde::Deserialize;
-use std::path::Path;
+use std::sync::Arc;
 
 #[derive(Deserialize, Debug, Clone)]
-struct Key {
+struct KeyPrefix {
     prefix: String
 }
 
 ////Request to get key value.
-pub(crate) async fn get_keys(State(state): State<String>, body:String) -> Result<String, StatusCode> {
+pub(crate) async fn get_keys(State(state): State<Arc<ServerState>>, body: String) -> Result<String, StatusCode> {
     info!("get_keys api called with keys {}", body);
-    let mut keys_found = Vec::new();
-    let r: Value = serde_json::from_str(&body).unwrap();
+    let json_key: Result<KeyPrefix, _> = serde_json::from_str(&body);
     
-    if r.is_array() {
-        let arr: Vec<Key> = serde_json::from_value(r).unwrap();
-        for key in arr {
-            keys_found.append(&mut get_key(State(state.clone()), key.prefix.to_owned()).await);
+    if let Ok(key) = json_key  {
+        let task_result = tokio::spawn(async move {    
+            get_keys_with_prefix(key.prefix.clone(), State(state.clone())).await
+        }).await;
+
+        if let Ok(keys_found_res) = task_result {
+            if let Ok(keys_found) = keys_found_res {
+                let response_string = serde_json::to_string::<Vec<Key>>(&keys_found).unwrap();
+                Ok(response_string)
+            } else {
+                Err(StatusCode::NOT_FOUND)    
+            }
+        } else {
+            Err(StatusCode::NOT_FOUND)
         }
     } else {
-        let key: Key = serde_json::from_value(r).unwrap();
-        keys_found.append(&mut get_key(State(state.clone()), key.prefix.to_owned()).await);
+        Err(StatusCode::NOT_FOUND)
     }
-    
-
-    let response_string = serde_json::to_string::<Vec<MatchedKeys>>(&keys_found).unwrap();
-    Ok(response_string)
 }
 
-async fn get_key(State(state): State<String>, key:String) -> Vec<MatchedKeys> {
-    let path = format!("{}/{}*", state, key);
-    let mut keys_found: Vec<MatchedKeys> = Vec::new();
-    for entry in glob(&path).expect("Failed to read glob pattern") {
-        match entry {
-            Ok(key_path) => {
-                info!("found file {:?}", key_path.display());
-                let file_name = Path::new(&key_path)
-                    .file_name()
-                    .expect("Faield to get file name form path")
-                    .to_string_lossy()
-                    .to_string();
-                
-                keys_found.push(MatchedKeys {key:file_name});
-        },
-            Err(e) => warn!("{:?}", e),
-        }
-    }
-    keys_found
+async fn get_keys_with_prefix(key: String, State(state): State<Arc<ServerState>>) -> Result<Vec<Key>, StatusCode> {
+    get_files_with_prefix(state.path.clone(), key).await
 }

@@ -1,7 +1,6 @@
 
-use super::server::{KeyValue, ServerState};
+use super::server::{KeyValue, ServerState, check_for_repeated_key};
 use crate::file_system::operations::write_file;
-use std::collections::HashSet;
 use std::sync::Arc;
 use futures::future;
 use axum::{extract::State, http::StatusCode};
@@ -85,7 +84,7 @@ pub(crate) async fn create_or_update_keys(
     Ok(create_json_response(keys_modified, failed_modification))
 }
 
-fn extract_failure_success(val: Result<Result<String, String>, tokio::task::JoinError>) -> bool{
+fn extract_failure_success(val: Result<Result<String, String>, tokio::task::JoinError>) -> bool {
     if let Ok(key_value) = val {
         if let Ok(_) = key_value {
                 true
@@ -112,19 +111,6 @@ async fn create_or_update_key(kv: KeyValue, path: String, create_new: bool) -> R
     match write_res {
         Ok(_) => Ok(kv.key),
         Err(err) => Err(err)
-    }
-}
-
-fn check_for_repeated_key(kv_vec :&Vec<KeyValue>) -> bool {
-    let keys = kv_vec.iter()
-        .map(|key| key.key.clone())
-        .collect::<HashSet<String>>();
-        
-    if keys.contains("") ||  kv_vec.len() !=  keys.len() {
-        warn!("Empty or repeated keys");
-        false
-    } else {
-        true
     }
 }
 

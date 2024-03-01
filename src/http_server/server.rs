@@ -19,7 +19,7 @@ pub(crate) struct ServerState {
     pub cache: Cache<String, String>
 }
 
-fn check_for_repeated_key(kv_vec :&Vec<KeyValue>) -> bool {
+pub(crate) fn check_for_repeated_key(kv_vec :&Vec<KeyValue>) -> bool {
     let keys = kv_vec.iter()
         .map(|key| key.key.clone())
         .collect::<HashSet<String>>();
